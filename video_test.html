@@ -22,31 +22,35 @@ Local video file : <input id="selectVideo" type="file" accept="video/*"/>
 <br>
 <canvas id="canvas" style="display:none"></canvas>
 <br>
+
+<!-- 테이블 시작 -->
 <table>
 <tr>
 <td>Model：</td>
 <td>
 <select id="Type">
 <option value="pose">pose</option>
-<option value="image">image</option>
 </select>
 </td>
 </tr>
 <tr>
 <td>Model URL：</td>
-<td><input type="text" id="modelPath" size="40" value=""></td>
+<td><input value="https://teachablemachine.withgoogle.com/models/8a2i874rC/" type="text" id="modelPath" size="40" ></td>
+</tr>
+<!-- 학습 -->
+<tr>
+<td>학습:</td>
+<td><a href="https://teachablemachine.withgoogle.com/train/" target="_blank">링크</a></td>
 </tr>
 <tr>
-<td>Flip Horizontal：</td>
-<td><input type="checkbox" id="flipHorizontal"></td>
-</tr>
-<tr>
-<td><a href="https://teachablemachine.withgoogle.com/train/" target="_blank">Train Model</a></td>
-<td><button type="button" onclick="LoadModel()">Start Recognition</button></td>
+<td>테스트:</td>
+<td><button type="button" onclick="LoadModel()">시작</button></td>
 </tr>
 </table>
+<!-- 테이블 끝 -->
+
 <br>
-<div id="message"></div>
+<div id="message">테스트 결과는?</div>
 <div id="result" style="color:red"></div>
 
 <script type="text/javascript">
@@ -57,59 +61,50 @@ Local video file : <input id="selectVideo" type="file" accept="video/*"/>
 	var modelPath = document.getElementById('modelPath');
 	var result = document.getElementById('result'); 
 	var Type = document.getElementById('Type');
-	var flipHorizontal = document.getElementById('flipHorizontal');
 	let model; 
 
 	async function LoadModel() {
-		if (modelPath.value=="") {
-			result.innerHTML = "Please input Model Link.";
+		if (modelPath.value == "") {
+			result.innerHTML = "Model URL 넣어 !!!";
+			return;
+		}
+		else if (selectVideo.value == ""){
+			result.innerHTML = "동영상 넣어 !!!";
 			return;
 		}
 		else
-			result.innerHTML = "Please wait for loading model.";
+			result.innerHTML = "Model 로딩중 찡긋 ㅇ.<";
 
 		const URL = modelPath.value;
 		const modelURL = URL + "model.json";
 		const metadataURL = URL + "metadata.json";
 		try {
-			if (Type.value=="image") {
-				model = await tmImage.load(modelURL, metadataURL);
-			}
-			else if (Type.value=="pose") {
-				model = await tmPose.load(modelURL, metadataURL);
+			if (Type.value=="pose") {
+				model = await tmPose.load(modelURL, metadataURL);	// 모델 로딩
 			}	
-			maxPredictions = model.getTotalClasses();
+			maxPredictions = model.getTotalClasses();	// 모델 클래스 개수
             
 			result.innerHTML = "";
 			predict();
 		}
 		catch (e){
-            result.innerHTML = "Loading model failed.";
+            result.innerHTML = "Model 로딩 실패 !!!";
 		}
 	} 
     
     async function predict() {
-        if (flipHorizontal.checked) {	
-            context.translate((canvas.width + video.width) / 2, 0);
-            context.scale(-1, 1);
-            context.drawImage(video, 0, 0, video.width, video.height);
-            context.setTransform(1, 0, 0, 1, 0, 0);  
-		}
-		else
         context.drawImage(video, 0, 0, video.width, video.height); 		
         
 		var data = "";
 		var maxClassName = "";
 		var maxProbability = "";
 		
-		if (Type.value=="image")
-        var prediction = await model.predict(canvas);
-		else if (Type.value=="pose") {
+		if (Type.value=="pose") {
             var { pose, posenetOutput } = await model.estimatePose(canvas);
 			var prediction = await model.predict(posenetOutput);
 		}		
         
-		if (maxPredictions>0) {
+		if (maxPredictions > 0) {
             for (let i = 0; i < maxPredictions; i++) {
                 if (i==0) {
                     maxClassName = prediction[i].className;
@@ -132,8 +127,41 @@ Local video file : <input id="selectVideo" type="file" accept="video/*"/>
 		}
 		else
 			result.innerHTML = "";
+
+		// 추가 부분
+        if (prediction[0].probability > 0.5) {
+          console.log("left");
+          console.log(prediction[0].probability);
+          document.querySelector("body").style.backgroundColor = "white";
+          document.querySelector("body").style.color = "black";
+        } else if (prediction[1].probability > 0.5) {
+          console.log("right");
+          console.log(prediction[1].probability);
+          document.querySelector("body").style.backgroundColor = "green";
+          document.querySelector("body").style.color = "black";
+        } else {
+          console.log("default");
+          console.log(prediction[2].probability);
+          document.querySelector("body").style.backgroundColor = "pink";
+          document.querySelector("body").style.color = "black";
+        }
+
+		drawPose(pose);
+
 		setTimeout(function(){predict(); }, 100);
-    	}
+    }
+
+	function drawPose(pose) {
+        if (canvas) {
+			context.drawImage(canvas, 0, 0);
+          // draw the keypoints and skeleton
+          if (pose) {
+            const minPartConfidence = 0.5;
+            tmPose.drawKeypoints(pose.keypoints, minPartConfidence, context);
+            tmPose.drawSkeleton(pose.keypoints, minPartConfidence, context);
+          }
+        }
+      }
 
 	selectVideo.onchange = function (event) {
 	  var target = event.target || window.event.srcElement;
